@@ -1,0 +1,219 @@
+STA504 Data Visualiazation
+Homework2
+Jessica Choe
+
+#1.Call libraries
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(lubridate)
+library(stringr)
+library(ggthemes)
+```
+#2. Read in data and clean column name
+```{r}
+
+#Read in columne name (second row) from the data
+col_names <- array(read_excel('C:/Users/user/Desktop/2020spring/504 data visualization/hw/hw2/US_Crude_Oil.xlsx', sheet = 'Sheet1', n_max = 1,skip=1, col_names = FALSE))
+
+#Read in the entire data except column name(from 4th row)
+oil <- data.frame(read_excel('C:/Users/user/Desktop/2020spring/504 data visualization/hw/hw2/US_Crude_oil.xlsx', sheet = 'Sheet1', skip = 3, col_names = FALSE))
+options(pillar.sigfig = 8) 
+
+#insert the columne name into oil data.
+colnames(oil) <- col_names
+head(oil,2)
+
+#Give names to columns with no name.
+names(oil)[3] <-"Wk1"
+names(oil)[5] <-"Wk2"
+names(oil)[7] <-"Wk3"
+names(oil)[9] <-"Wk4"
+names(oil)[11] <-"Wk5"
+head(oil,2)
+
+
+#remove any unnecessary hidden dots in Year-Month column 
+oil$`Year-Month`<-str_trim(oil$`Year-Month`) 
+
+head(oil,5)
+
+```
+#3. Create a tall table for "date"
+```{r}
+
+# From wide to tall table for date.
+oil_date <-oil%>% 
+  select(`Year-Month`,
+         `Week 1`,`Week 2`,`Week 3`,`Week 4`, `Week 5`)%>%      gather(key="Week",value="Month-Date",2:6) 
+
+head(oil_date)
+
+# remove any rows with NA from the tall table(oil_date).
+oil_date<-oil_date[complete.cases(oil_date), ] 
+head(oil_date)
+
+# Create date variable in POSIX format.
+date_long <- oil_date %>%
+  mutate(Year=str_sub(`Year-Month`,1,4),
+         Date.string = paste0(Year, "/",`Month-Date`)) 
+head(date_long)
+
+#change the date in string format into POSIX format.
+date_long2 <- date_long %>% 
+  mutate(Date = ymd(Date.string)) %>%
+  arrange(Date) %>% 
+  select(`Year-Month`,Week,Date)
+
+head(date_long2,8) 
+
+```
+#4. Create a second tall table for "Production" and combine 2 tables together into one table 
+```{r}
+
+#Select weekly production amount variables together with Year-Month variable.
+production_tall<-oil%>% 
+select(`Year-Month`,
+       `Wk1`,`Wk2`,`Wk3`,`Wk4`,`Wk5`)
+
+#Change the column names so that later we can combine the two tables with same value.
+colnames(production_tall)<-c("yearmonth","Week 1","Week 2","Week 3","Week 4","Week 5")
+head(production_tall)
+
+#From Wide to Tall format
+production_tall<-production_tall%>% 
+  gather(key="production_wk",value="Production",2:6) 
+head(production_tall,3)
+
+
+#Find white cells(empty-looking cells) with hidden character"   ", change it into NA, and then erase the row if it contains NA
+hidden_dots=production_tall[5,3]
+production_tall<-production_tall %>%
+  mutate_all(~ifelse(. %in% c("null",hidden_dots),NA,.)) %>%
+  na.omit()
+head(production_tall)
+
+
+#Combine two tables together.
+colnames(date_long2)
+colnames(production_tall)
+
+date_production<-date_long2 %>% inner_join(production_tall, by =c("Year-Month"="yearmonth","Week"="production_wk"))
+head(date_production)
+
+#remove whitespace and "," in Production column and then change its type in numeric 
+head(date_production,2)
+date_production$Production<-str_trim(date_production$Production) 
+date_production$Production<-as.numeric(gsub(",","",date_production$Production))
+
+#Show two columns only as final table.
+date_production_only<-select(date_production,Date,Production)
+head(date_production_only)
+
+```
+#5. Create 3 plots (Question 2)
+# Create first 2 plots using Weekly(Plot1) and Monthly(Plot2) data
+```{r}
+
+#Plot 1. Weekly average production amount
+ggplot() +
+  geom_line(aes(x=Date,y=Production,color="Weekly"),
+            data=date_production,size=1)+
+  scale_y_continuous(label = scales::comma)+  labs(x="Year",y="Thousand Barrels Per Day",color="Computation Method",size=2)+
+  ggtitle("Weekly U.S. Production of Crude Oil",
+      subtitle="From Jan 7th 1983 to Feb 7th in 2020")+
+  theme_clean()+
+  theme(plot.title = element_text(size = 10,
+        hjust=0.5,face = "bold", color="navy"),
+        plot.subtitle=element_text(size=8, hjust=0.5, face="italic"),
+      legend.text=element_text(size=8),
+        legend.title=element_text(size=8))+
+  theme(legend.position= "bottom")
+
+
+# Plot 2. Quarterly average production amount
+
+#Calculate average monthly production and create month format.(The first date of each month will represent each month itself.(example: 1983-01-01 means January 1983))
+monthly_production <-date_production %>% 
+  group_by(`Year-Month`) %>%   summarise(monthly_production=mean(Production))
+
+head(monthly_production)
+monthly_string <- monthly_production %>%
+  mutate(month.string = paste0(`Year-Month`,"-01")) 
+monthly_production2 <-monthly_string %>% mutate(Month = ymd(`month.string`))
+head(monthly_production2)
+
+#Second plot (Monthly plot)
+
+ggplot()+
+  geom_line(aes(x=Month,y=monthly_production,
+                color="Monthly"),size=1,
+            data=monthly_production2)+
+  scale_y_continuous(label = scales::comma)+    
+  labs(x="Year",y="Thousand Barrels Per Day",color="Computation Method",size=1)+
+  ggtitle("Monthly U.S. Production of Crude Oil",
+          subtitle="From Jan 7th 1983 to Feb 7th in 2020")+
+  theme_clean()+
+  theme(plot.title = element_text(size = 10,
+        hjust=0.5,face = "bold", color="navy"),
+        plot.subtitle=element_text(size=8, hjust=0.5, face="italic"),
+      legend.text=element_text(size=8),
+        legend.title=element_text(size=8))+
+  theme(legend.position= "bottom")
+```
+#6. Plot 3. Combined plot(Quarterly, Yearly)
+```{r}
+#Categorize each month into the combination of year and quarter
+quarterly_production <- monthly_production2 %>%
+  mutate(Quarter=paste(year(Month),"-",quarter(Month)),
+         quarter.num=quarter(Month))%>%group_by(Quarter)
+
+# Change the order of quarter(1st/2nd/3rd/4th qt) into date format.
+# Example:3rd quarter->"-10-01"(oct 1st:First day of each Quarter)
+quarterly_production$quarter.num <-
+case_when(
+  quarterly_production$quarter.num==1 ~ "-01-01",
+  quarterly_production$quarter.num==2 ~ "-04-01",
+  quarterly_production$quarter.num==3 ~ "-07-01",
+  TRUE ~ "-10-01"
+)
+# Create a string format for Quarterly first date and  change it into date format. Select necessary columns only.
+quarterly_production2<-quarterly_production %>%  mutate(year.str=str_sub(Month,1,4)) %>%        mutate(qt.str = paste0(year.str,quarter.num)) %>% mutate(Quarter.date = ymd(qt.str)) %>% select(Quarter.date, monthly_production)
+head(quarterly_production2,3)
+
+#Calculate average of each quarter
+quarterly_mean<- quarterly_production2%>%group_by(Quarter.date) %>%    summarise(Quarterly_Production=mean(monthly_production))
+
+date_production <-date_production%>%
+  select(Date,Production)
+names(quarterly_mean) <- c("Year","Production")
+names(date_production) <- names(quarterly_mean)
+Quarterly<-quarterly_mean
+Weekly<-date_production
+
+#Third plot for quartly and weekly
+ggplot()+
+  geom_line(aes(x=Year,y=Production,color="Quarterly"),
+            data=Quarterly,size=1,
+            alpha=1)+
+  geom_line(aes(x=Year,y=Production,color="Weekly"),
+            data=Weekly,size=0.3,
+            alpha=0.6)+    
+  labs(x="Year",y="Thousand Barrels Per Day",color="Computation Method")+
+  theme(legend.position= "bottom")+
+  scale_y_continuous(label = scales::comma)+
+  ggtitle("Production of Crude Oil In the U.S.(Week/Quarter)",subtitle="From January in 1983 to February in 2020, Thousand Barrels Per Day")+
+  theme_clean()+
+  theme(plot.title = element_text(size = 10,hjust=0.5, color="navy"),
+        plot.subtitle=element_text(size=8, hjust=0.5,
+          face="italic", color="black"),
+           legend.text=element_text(size=7),
+        legend.title=element_text(size=7))+
+            theme(legend.position= "bottom")
+
+#Additional aesthetic feature: Letter face type(Italic), title location(center), a special theme(clean) added
+
+```

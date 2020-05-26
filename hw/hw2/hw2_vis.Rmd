@@ -1,0 +1,175 @@
+libraries
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(lubridate)
+library(stringr)
+library(ggthemes)
+```
+Step1. read in data and clean column name
+```{r}
+
+#Read in columne name (second row) from the data
+col_names <- array(read_excel('C:/Users/user/Desktop/2020spring/504 data visualization/hw/hw2/US_Crude_Oil.xlsx', sheet = 'Sheet1', n_max = 1,skip=1, col_names = FALSE))
+
+#Read in the entire data except column name(from 4th row)
+oil <- data.frame(read_excel('C:/Users/user/Desktop/2020spring/504 data visualization/hw/hw2/US_Crude_oil.xlsx', sheet = 'Sheet1', skip = 3, col_names = FALSE))
+options(pillar.sigfig = 8) 
+#insert the columne name into oil data.
+colnames(oil) <- col_names
+head(oil,2)
+
+#Give names to columns with no name.
+names(oil)[3] <-"Wk1"
+names(oil)[5] <-"Wk2"
+names(oil)[7] <-"Wk3"
+names(oil)[9] <-"Wk4"
+names(oil)[11] <-"Wk5"
+head(oil,2)
+
+#names(oil) <-str_replace_all(names(oil),c("  "=""))
+#head(oil,2)
+
+#remove any unnecessary hidden dots in Year-Month column 
+oil$`Year-Month`<-str_trim(oil$`Year-Month`) 
+
+head(oil,5)
+```
+```{r}
+#1-(1)Create a tall table for "date"
+
+# From wide to tall table for date.
+oil_date <-oil%>% 
+  select(`Year-Month`,
+         `Week 1`,`Week 2`,`Week 3`,`Week 4`, `Week 5`)%>%      gather(key="Week",value="Month-Date",2:6) 
+
+head(oil_date)
+
+# remove any rows with NA from the tall table(oil_date).
+# Another option: oil_date$`Year-Month`<-trimws(oil_date$`Year-Month`)
+oil_date<-oil_date[complete.cases(oil_date), ] 
+head(oil_date)
+
+# Create date variable in : format.
+date_long <- oil_date %>%
+  mutate(Year=str_sub(`Year-Month`,1,4),
+         Date.string = paste0(Year, "/",`Month-Date`)) 
+head(date_long)
+
+#change the date in string format into POSIX format.
+date_long2 <- date_long %>% 
+  mutate(Date = ymd(Date.string)) %>%
+  arrange(Date) %>% 
+  select(`Year-Month`,Week,Date)
+
+head(date_long2,8) 
+
+```
+```{r}
+#1-(2)Create a tall table for "Production"
+
+#Select weekly production amount variables together with Year-Month variable.
+production_tall<-oil%>% 
+select(`Year-Month`,
+       `Wk1`,`Wk2`,`Wk3`,`Wk4`,`Wk5`)
+
+#Change the column names so that later we can combine the two tables with same value.
+colnames(production_tall)<-c("yearmonth","Week 1","Week 2","Week 3","Week 4","Week 5")
+head(production_tall)
+
+#From Wide to Tall format
+production_tall<-production_tall%>% 
+  gather(key="production_wk",value="Production",2:6) 
+head(production_tall,3)
+
+#production_tall<-str_replace_all(production_tall$Production,c("   "=""))
+#head(production_tall)
+
+#Find white cells(empty-looking cells) with hidden character"   ", change it into NA, and then erase the row if it contains NA
+hidden_dots=production_tall[5,3]
+production_tall<-production_tall %>%
+  mutate_all(~ifelse(. %in% c("null",hidden_dots),NA,.)) %>%
+  na.omit()
+head(production_tall)
+
+
+#Combine two tables together.
+colnames(date_long2)
+colnames(production_tall)
+
+date_production<-date_long2 %>% inner_join(production_tall, by =c("Year-Month"="yearmonth","Week"="production_wk"))
+head(date_production)
+
+#remove whitespace and "," in Production column and then change its type in numeric 
+head(date_production,2)
+date_production$Production<-str_trim(date_production$Production) 
+date_production$Production<-as.numeric(gsub(",","",date_production$Production))
+#Show two columns only as final table.
+date_production_only<-select(date_production,Date,Production)
+head(date_production_only)
+
+```
+
+```{r}
+#2 Make plot
+
+# Weekly average production amount
+ggplot() +
+  geom_line(aes(x=Date,y=Production),
+            data=date_production,size=1,color="pink")+
+  scale_y_continuous(label = scales::comma)+
+  labs(x="Year",y="Thousand Barrels Per Day")+
+  ggtitle("Weekly U.S. Production of Crude Oil",
+          subtitle="From Jan 7th 1983 to Feb 7th in 2020")+
+  theme_clean()+
+  theme(plot.title = element_text(size = 10, face = "bold",hjust = 0.5))+
+theme(plot.subtitle=element_text(size=8, hjust=0.5, face="italic", color="grey")) 
+
+
+# Monthly average production amount
+monthly_production <-date_production %>% 
+  group_by(`Year-Month`) %>%   summarise(monthly_production=mean(Production))
+
+head(monthly_production)
+monthly_string <- monthly_production %>%
+  mutate(month.string = paste0(`Year-Month`,
+                              "-01")) 
+monthly_production2 <-monthly_string %>% mutate(Month = ymd(`month.string`))
+head(monthly_production2)
+
+ggplot() +geom_line(aes(x=Month,y=monthly_production),
+            data=monthly_production2,size=.6)+
+  scale_y_continuous(label = scales::comma)+
+  labs(x="Month",y="Thousand Barrels Per Day")+
+  ggtitle("Monthly U.S. Production of Crude Oil",
+          subtitle="From Jan 7th 1983 to Feb 7th in 2020")+
+  theme_wsj()+
+  theme(plot.title = element_text(size = 10, hjust=0.5,face = "bold"))+
+theme(plot.subtitle=element_text(size=8, hjust=0.5, face="italic", color="brown"))
+
+
+
+
+#Combined plot
+ggplot()+
+  geom_line(aes(x=Month,y=monthly_production),
+          data=monthly_production2,size=1,color="blue",alpha=0.5)+
+  geom_line(aes(x=Date,y=Production),
+            data=date_production,size=0.5,color="pink",alpha=0.6)+
+  scale_y_continuous(label = scales::comma)+
+  labs(x="Year",y="Thousand Barrels Per Day")+
+  ggtitle("Production of Crude Oil In the U.S.(Monthly,Weekly)",subtitle="From January in 1983 to February in 2020, Thousand Barrels Per Day")+
+  
+  theme_clean()+
+   theme(plot.title = element_text(size = 10, hjust=0.5,face = "bold"))+
+theme(plot.subtitle=element_text(size=8, hjust=0.5, face="italic", color="navy"))
+#+theme(legend.position= "bottom")
+  
+  
+  
+
+
+```
