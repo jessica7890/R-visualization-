@@ -1,0 +1,81 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#INCLASS3
+#JESSICA CHOE
+#0.
+```{r}
+library(tidyverse)
+library(dplyr)
+
+oh_brfss <- read_csv("https://raw.githubusercontent.com/qyuan20/Datasets-DataVis/master/ohioBRFSS2018.csv")
+```
+#1
+```{r}
+
+oh_selected <-select(oh_brfss,IMONTH, IDAY, PHYSHLTH, MENTHLTH)
+head(oh_selected)
+```
+#2
+```{r}
+class(oh_selected$MENTHLTH)
+
+oh_PHYSHLTH2=oh_selected %>% 
+  mutate(P.health=ifelse((PHYSHLTH==88),0,PHYSHLTH))
+
+head(oh_PHYSHLTH2,3)
+Oh_none_removed=oh_PHYSHLTH2 %>% 
+  mutate(M.health=ifelse((MENTHLTH==88),0,MENTHLTH))
+
+colnames(Oh_none_removed)[1]<-"Month" 
+colnames(Oh_none_removed)[2]<-"Day" 
+
+#change column name IMONTH to Month for better visualization
+head(Oh_none_removed)
+```
+
+#3. we need PHYSHLTH from 0 to 30, same range for MENTHLTH, so anything below 31 can be filtered in this data 
+```{r}
+oh_filtered <-Oh_none_removed%>%
+  dplyr::filter(P.health< 31 & M.health< 31)
+
+oh_cleaned<-select(oh_filtered,Month,Day,P.health,M.health)
+oh_cleaned
+```
+#4.
+```{r}
+head(oh_cleaned,6)
+```
+#5
+```{r}
+ggplot(aes(x=P.health,y=M.health),data=oh_cleaned) +
+  geom_count(alpha=0.3)+
+  geom_smooth( method=lm )+
+  labs(x="Number of Days Physical Health Bad",
+       y="Number of Days Mental Health Bad", 
+  title="The Scatter Plot:Bad Physical and Bad Mental Health")+
+  theme(plot.title = element_text(size = 10))
+```
+#6.
+```{r}
+head(oh_cleaned,2)
+
+oh_summary=oh_cleaned %>% group_by(Month) %>% 
+  summarise(mean.physical=mean(P.health),
+            sd.physical=sd(P.health),
+            mean.mental=mean(M.health),
+            sd.mental=sd(M.health))
+oh_summary
+```
+#7.
+```{r}
+ggplot() +
+  geom_point(aes(x=mean.physical,y=mean.mental,color=Month),
+             data=oh_summary,alpha=0.5)+
+  labs(x="Monthly Average of Bad Physical Days",
+       y="Monthly Average of Bad Mental Days",
+ title="The Scatter Plot:Average Physical and Mental Days")+
+  theme(plot.title = element_text(size = 10))
+```

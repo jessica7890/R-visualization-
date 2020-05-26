@@ -1,0 +1,127 @@
+---
+title: "STA 404/504 Day16 In-Class Assignment"
+author: "Jess Choe(Jae Seong Choe) 504"
+date: "3/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+The Behavioral Risk Factor Surveillance System (BRFSS) is the nation’s premier system of health-related telephone surveys that collect state data about U.S.residents regarding their health-related risk behaviors, chronic health conditions, and use of preventive services. We have worked on the Ohio BRFSS data in 2018 in Day 09. This In-class assignment is to use the same data, and practice with data cleaning, generating heatmap, fluctuation diagrams and mosaic plots. **Please also keep in mind of the design principles we discussed in class, include necessary labels, titles, etc.**
+
+The Code book is at: https://www.cdc.gov/brfss/annual_data/2018/pdf/codebook18_llcp-v2-508.pdf
+
+
+```{r,message=FALSE,warning=FALSE}
+library(tidyverse)
+oh_brfss <- read_csv("https://raw.githubusercontent.com/qyuan20/Datasets-DataVis/master/ohioBRFSS2018.csv")
+#oh_brfss <- read_csv("ohioBRFSS2018.csv")
+```
+
+# Data Preparation
+First, let's select a number of variables for exploration: date, marital status, Education status, general health status, housing status (Own or Rent Home), Exercise (Exercise in Past 30 Days), and smoking habits (Frequency of Days Now Smoking).
+
+Most of the above variables recorded numerically, we need to label them based on values in codebook to build plots. The following is a sample code to select the variables and change the label for Education status. 
+
+
+# Tasks
+Please complete the following tasks:
+
+
+####1. Pick up a pair of variables that you think will contain an interesting association. Explain why do you suspect the pair you choose will be interesting?
+I chose Education and Exercise because I guessed there might be some relation between education level and doing exercise.
+
+For example, people in higher education tend to be more disciplined and try to control their daily habit such as exercise. Another example can be like people in lower education level are more active rather than sitting in a desk so they might do more exercise.
+
+####2. Based on the pair of variables you choose, add necessary code to the dplyr pipeline above to clean-up the data. Please also remove observations where the answers were 'refused', 'don't know', or are missing/blanks. Show the first few lines of the data.
+```{r}
+
+oh_clean <- oh_brfss%>%
+  select(EDUCA, EXERANY2,IMONTH,IDAY,IYEAR) %>%
+  dplyr::filter(EXERANY2<3 & EDUCA<7) %>%
+  mutate(Exercise = factor(EXERANY2,levels=c(1,2),
+  labels=c("Yes","No"))) %>% 
+  mutate(Education= factor(EDUCA,levels=c(1,2,3,4,5,6),
+labels=c("Never","Elementary","Junior-High",
+"High","College","Univerity")))
+head(oh_clean)
+#Will select the finally necessary variables in the next block
+```
+####3. Add a new variable 'MONTH' to the data, which has values 'Jan', 'Feb',$\cdots$,etc. Show the first few lines of the data.
+```{r}
+library(lubridate)
+head(oh_clean)
+
+oh_clean<-oh_clean %>% 
+  mutate(Date_str = paste0(IMONTH,"/",IDAY,"/",IYEAR)) %>%
+  mutate(DATE=mdy(Date_str))
+
+oh_month<-oh_clean%>%
+  mutate(Month=month.abb[month(DATE)]) %>% select(Exercise,Education,Month)
+head(oh_month)
+```
+####4. Using the variable "MONTH" and the pair of categorical variables you selected, answer the following questions:
+
+#####(1). Generate a heatmap of the contingency table of the pair of variables you selected.
+```{r}
+# contingency table(summary) :grouped first by Exercise and then Education
+summary <- oh_month %>% 
+  group_by(Exercise,Education) %>% 
+  summarise(n=n()) 
+
+summary %>% 
+  ggplot() +
+  geom_tile(aes(x=Exercise,y=Education,fill=n),
+            color="white") + 
+  scale_fill_gradient(low="white",high="blue") +
+  labs(fill = "Frequency",title="Heatmap of Exercise and Education")
+
+```
+
+
+
+#####(2). Generate a fluctuation diagram of the above contigency table.
+```{r}
+ggplot() + 
+  geom_point(aes(x=Exercise, y=Education,size=n), 
+             shape=1, data=summary)+labs(title="Fluctuation Diagram of Exercise and Month",size="Frequency") + 
+  theme_bw()
+```
+
+
+
+#####(3). Discuss what you find in (1) and (2).
+Contingency table and fluctuation diagram can show the same distribution of intensity between selected factors. However, Contingency table of heat map is still visually a lot easier/faster to understand to me and more appealing than the fluctuaion diagram.
+
+
+#####(4). Generate a mosaic plot between "MONTH" and one of the variables you selected.
+
+```{R}
+library(ggmosaic)
+oh_month$Month <-ordered(oh_month$Month,
+                        levels=c("Jan","Feb","Mar", "Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+
+ggplot() +
+  geom_mosaic(aes(x=product(Month), fill=Exercise), data=oh_month)+    
+  labs(x="Month",y="Exercise"
+,title="Mosaic table of Exercise and Month")
+
+
+```
+
+
+
+##----------------------------------------------------##
+
+#####(5). Generate a mosaic plot between the pair of variables you selected. Discuss what does this mosaic plot reflect. 
+Discussion: 
+It shows overal proportional difference among different groups. Univerityersity graduates have higher proportion of doing exercise than not doing exercise while no big difference for the College graduates, while lower level of education graduates (No education to Highschool graduates), they have higher proportion of not doing exercise than doing exercise. 
+
+In addition, regardless exercise part, people in higher education (Univerityersity and College graduates) takes big proportion of total population.
+```{r}
+ggplot() +
+  geom_mosaic(aes(x=product(Exercise), fill=Education), data=oh_month)+    
+  labs(x="Exercise",y="Education",title="Mosaic table of Exercise and Education")
+
+```

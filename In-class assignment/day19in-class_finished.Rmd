@@ -1,0 +1,124 @@
+---
+title: "STA 404/504 Day19 In-Class"
+subtitle: "Map Introduction"
+author: "Jessica Choe, 504"
+date: "3/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+This assignment is designed to help you familiar with the choropleth maps.
+**Please also keep in mind of the design principles we discussed in class, include necessary labels, titles, etc.**
+
+We will use a population dataset from the Cencus Bureau: https://www.census.gov/data/datasets/time-series/demo/popest/2010s-counties-total.html#par_textimage_70769902.
+
+To download the dataset and get the codebook of it, you may scroll down to the end of the page and find the "Datasets" section. 
+
+**Data**: Download the file "Population, Population Change, and Estimated Components of Population Change: April 1, 2010 to July 1, 2018   [<1.0 MB]", the name of the file is "co-est2018-alldata.csv". 
+
+**Code Book**: https://www2.census.gov/programs-surveys/popest/technical-documentation/file-layouts/2010-2018/co-est2018-alldata.pdf
+
+First, we load the libraries.
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(maps)
+library(ggthemes)
+library(mapproj)
+library(stringr)
+```
+
+## Task 1
+Load the contiguous Ohio county map file and make a map of it using `geom_path()`.
+
+
+```{r}
+
+library(maps)
+
+ohio_map_data <- map_data("county",region="ohio")
+head(ohio_map_data)
+tail(ohio_map_data)
+ggplot() + 
+  geom_path(aes(x=long, y=lat, group=group), data=ohio_map_data)
+
+```
+
+## Task 2
+The above created rectangular coordinate systems involve less complicated calculations of distance, area, and position. However, the projection methods used cause distortions of the Earth’s surface by stretching or compressing shape, area, or scale. 
+
+One of the most commonly used projection systems in Ohio is the Lambert projection. To use this coordicat system, you may specify `lat0=33, lat1=45` in the `coord_map()`, and specify the projection is `lambert`.
+
+Also add on a `theme_map()` to clean up the grid-lines (generally not needed in maps).
+```{r}
+
+ggplot() + 
+  geom_path(aes(x=long, y=lat, group=group), data=ohio_map_data)+
+  coord_map(projection="lambert", lat0 = 33, lat1 = 45)
+
+```
+
+## Task 3
+
+Now you will do some data preparation to make a choropleth map (a map colored by regional attributes) (recall the gdpPercap example discussed in class). **There are many variables in the dataset, you may just choose one of the variables to show its values in the map. ** You can adit and add necessary code in the following R chunk. 
+
+The following code first read in the downloaded  dataset. Next, using the `filter(STATE==39)`, we get a smaller dataset only containing the infromation of counties in Ohio. To combine the map file with the population dataset, you may use the `left_join()` function. 
+
+The `str_sub` function in the `stringr` package may be used to do some string extraction. The `tolower()` function is useful to change character strings to lower cases.
+
+```{r}
+library(stringr)
+
+pop_data <- read_csv("C:/Users/user/Desktop/2020spring/504 data visualization/In-class assignment/co-est2018-alldata.csv")
+library(stringr)
+ohio_pop_data <- pop_data %>% 
+  filter(STATE==39) %>% 
+  select(STNAME,CTYNAME,POPESTIMATE2018)
+head(ohio_pop_data,3)
+
+
+head(ohio_map_data)#subregion: adams
+head(ohio_pop_data)#CTYNAME: Adams County
+ohio_pop_data$CTYNAME <- str_to_lower(ohio_pop_data$CTYNAME)
+head(ohio_pop_data,3)
+ohio_pop_data2<-ohio_pop_data %>% select(CTYNAME,POPESTIMATE2018)
+ohio_pop_data2$county_pop <-str_replace_all(ohio_pop_data$CTYNAME,
+                                            " county", "") 
+head(ohio_pop_data2,3)
+
+ohio_map_all <- left_join(ohio_map_data,ohio_pop_data2,
+                            by=c("subregion"="county_pop"))
+
+head(ohio_map_all)
+```
+
+
+## Task 4 
+Make a cloropleth map of counties in Ohio by the variable that you choose. Do the following aesthetic add ons
+
+* Add a meaningful title and caption label specifying the data source; captions can be added using `caption="Data Source: United States Census Bureau"` in the `labs()` option. Make sure the title is centered. 
+* Specify the fill scheme to be based on the color purple: `low="orchid"`, `high="mediumpurple4"`. Make sure to give the legend (or guide) title a meaningful name.
+* Specify the legend location to be at `c(1,0.1)`, which is at the right hand side of the graph. 
+
+```{r}
+#install.packages(scales)
+library(scales)
+#ohiomap <- 
+  ggplot() +
+  geom_polygon(aes(x=long,y=lat,group=group,fill=POPESTIMATE2018),
+                data=ohio_map_all)+
+  coord_quickmap() + 
+  theme_map()+
+  scale_fill_gradient(low="orchid", high="mediumpurple4", name="Population per County",labels=comma) +   
+  labs(title="Ohio Population Estimate by County in 2018", 
+       subtitle="Total Resident Population Estimate in July 1st 2018",
+       caption="Data Source: United States Census Bureau")+
+  theme(legend.position = c(1,0.2),
+        plot.title=element_text(hjust=0.5,face="bold"),
+        plot.subtitle=element_text(hjust=0.5),
+        plot.caption=element_text(hjust=0.5))
+
+
+```

@@ -1,0 +1,56 @@
+---
+Day 28 In class 
+Jessica Choe
+---
+
+```{}
+
+
+#Question1================================================================
+setwd("C:/Users/user/Desktop/2020spring/504 data visualization/In-class assignment")
+library(ggplot2)
+
+load("Jan2020Flight.Rdata")
+
+#Select necessary variables only and start using "delay2".
+delay2<-delay %>% select(ORIGIN_STATE_NM,OP_UNIQUE_CARRIER,dep_hour,dep_min) 
+
+#Calculate total number of flights per carrier.
+delay_sum<- delay2 %>% 
+  group_by(OP_UNIQUE_CARRIER)%>%
+  summarise(num_flights=n()) 
+
+#Create bargraph. 
+ggplot(data=delay_sum) + 
+  geom_bar(aes(x=OP_UNIQUE_CARRIER,y=num_flights),
+           stat="identity",fill="lightblue") + 
+  labs(x="Carrier", y="Number of Flights", 
+       title="Number of Flights Per Carrier")+
+  coord_flip()+theme_bw()
+
+  
+
+#Question 2===========================================================
+
+#Create a new variable for the departure time.
+delay_dptime<-delay2 %>% 
+  mutate(dp_time=dep_hour+dep_min/60) %>%  group_by(ORIGIN_STATE_NM)
+  
+#Reorder the state by the amount of the median. (decreasing order)
+reordered_State <- with(delay_dptime, reorder(ORIGIN_STATE_NM,dp_time, median , na.rm=T))
+
+#Boxplot 
+  ggplot(delay_dptime)+
+  geom_boxplot(aes(x=reordered_State, y=dp_time),fill="skyblue")+
+  coord_flip()+
+  labs(y="Departure time",x="State",
+       title="Boxplots for Departure Time for Each State")+
+  theme(axis.text.y = element_text(size=8,angle=45),
+  axis.text.x = element_text(size=8,angle=45))+
+  theme_bw()
+#For some reason, changing the size of the axis using axis.text.y does not #work in R mark down although it works in R
+
+
+
+
+```
